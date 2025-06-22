@@ -16,7 +16,7 @@ class HabitTrackerView:
         title = toga.Label('Kebiasaanku 💪', style=Pack(font_size=20, padding_bottom=10))
         self.content_box.add(title)
 
-        # 💛 Form Input Box
+        # 💛 Form Tambah Kebiasaan
         box_add = toga.Box(style=Pack(direction=COLUMN, padding=10, background_color="#FFF9C4"))
         box_add.add(toga.Label('Buat Kebiasaan Baru', style=Pack(padding_bottom=10, font_style='italic')))
 
@@ -29,7 +29,8 @@ class HabitTrackerView:
         frequency_box.add(toga.Label('Seberapa Sering?', style=Pack(width=140)))
         self.frequency_input = toga.Selection(
             items=['Harian', 'Mingguan', 'Bulanan', 'Sesuai Kebutuhan'],
-            style=Pack(flex=1)
+            style=Pack(flex=1),
+            value='Harian'  # Default
         )
         frequency_box.add(self.frequency_input)
 
@@ -50,6 +51,7 @@ class HabitTrackerView:
         box_add.add(add_btn)
         self.content_box.add(box_add)
 
+        # 📋 Daftar Kebiasaan
         self.list_box = toga.Box(style=Pack(direction=COLUMN, padding_top=20, flex=1))
         self.scroll_container = toga.ScrollContainer(style=Pack(flex=1))
         self.scroll_container.content = self.items_box
@@ -66,8 +68,10 @@ class HabitTrackerView:
             return
 
         try:
-            cursor.execute("INSERT INTO habits (name, frequency, last_performed, target) VALUES (?, ?, ?, ?)",
-                           (self.name_input.value, self.frequency_input.value, None, self.target_input.value))
+            cursor.execute(
+                "INSERT INTO habits (name, frequency, last_performed, target) VALUES (?, ?, ?, ?)",
+                (self.name_input.value, self.frequency_input.value, None, self.target_input.value)
+            )
             self.app.conn.commit()
             self.name_input.value = ''
             self.target_input.value = ''
@@ -89,7 +93,7 @@ class HabitTrackerView:
             self.list_box.remove(self.habit_label)
 
         if rows:
-            self.habit_label = toga.Label('📋 Daftar Kebiasaan')
+            self.habit_label = toga.Label('📋 Daftar Kebiasaan', style=Pack(font_size=16, padding_bottom=10))
             self.list_box.insert(0, self.habit_label)
         else:
             self.habit_label = None
@@ -112,13 +116,13 @@ class HabitTrackerView:
                 mark_done_btn = toga.Button(
                     '✅ Sudah Selesai Hari Ini',
                     enabled=False,
-                    style=Pack(flex=1, padding_right=5, background_color="#E0E0E0")
+                    style=Pack(flex=1, padding_right=5, background_color="#E0E0E0", color="black")
                 )
             else:
                 mark_done_btn = toga.Button(
                     '✔️ Selesai Hari Ini',
                     on_press=partial(self.mark_habit_done, row[0]),
-                    style=Pack(flex=1, padding_right=5, background_color="#FFB74D", color="")
+                    style=Pack(flex=1, padding_right=5, background_color="#FFB74D", color="black")
                 )
 
             edit_btn = toga.Button(
