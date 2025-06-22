@@ -39,6 +39,7 @@ class DailyJournalView:
         mood_box.add(toga.Label('Suasana Hati:', style=Pack(width=120)))
         self.mood_input = toga.Selection(
             items=['Sangat Bahagia', 'Bahagia', 'Biasa Saja', 'Sedih', 'Sangat Sedih'],
+            value='Biasa Saja',
             style=Pack(flex=1)
         )
         mood_box.add(self.mood_input)
@@ -72,8 +73,10 @@ class DailyJournalView:
             self.app.main_window.error_dialog("Input Kosong", "Judul ceritamu tidak boleh kosong!")
             return
 
-        cursor.execute("INSERT INTO daily_journal (date, title, content, mood) VALUES (?, ?, ?, ?)",
-                       (date_str, self.title_input.value, self.content_input.value, self.mood_input.value))
+        cursor.execute(
+            "INSERT INTO daily_journal (date, title, content, mood) VALUES (?, ?, ?, ?)",
+            (date_str, self.title_input.value, self.content_input.value, self.mood_input.value)
+        )
         self.app.conn.commit()
         self.title_input.value = ''
         self.content_input.value = ''
@@ -93,7 +96,7 @@ class DailyJournalView:
             self.list_box.remove(self.entry_label)
 
         if rows:
-            self.entry_label = toga.Label('📖 Entri Sebelumnya')
+            self.entry_label = toga.Label('📖 Entri Sebelumnya', style=Pack(font_size=16, padding_bottom=10))
             self.list_box.insert(0, self.entry_label)
         else:
             self.entry_label = None
@@ -124,7 +127,7 @@ class DailyJournalView:
             item_box.add(btn_box)
             self.items_box.add(item_box)
 
-    def delete_item(self, item_id):
+    def delete_item(self, item_id, widget=None):  # <- diperbaiki
         self.app.main_window.confirm_dialog(
             "Konfirmasi Hapus",
             "Apakah kamu yakin ingin menghapus cerita ini?",
