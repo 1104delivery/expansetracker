@@ -1,0 +1,143 @@
+import toga
+from toga.style import Pack
+from toga.style.pack import COLUMN, ROW
+from datetime import datetime
+from functools import partial
+
+class DailyJournalView:
+    def __init__(self, app):
+        self.app = app
+        self.content_box = toga.Box(style=Pack(direction=COLUMN, flex=1, background_color="#FFFDE7"))
+        self.items_box = toga.Box(style=Pack(direction=COLUMN, padding_top=5, flex=1))
+        self.entry_label = None
+        self.setup_ui()
+
+    def setup_ui(self):
+        title = toga.Label('Catatan Harianku 📝', style=Pack(font_size=20, padding_bottom=10))
+        self.content_box.add(title)
+
+        # 🌼 Form entri baru
+        box_add = toga.Box(style=Pack(direction=COLUMN, padding=10, background_color="#FFF9C4"))
+        box_add.add(toga.Label('Tulis Cerita Baru', style=Pack(padding_bottom=10, font_style='italic')))
+
+        date_box = toga.Box(style=Pack(direction=ROW, alignment='center', padding_bottom=5))
+        date_box.add(toga.Label('Tanggal:', style=Pack(width=120)))
+        self.date_input = toga.DateInput(value=datetime.now().date(), style=Pack(flex=1))
+        date_box.add(self.date_input)
+
+        title_box = toga.Box(style=Pack(direction=ROW, alignment='center', padding_bottom=5))
+        title_box.add(toga.Label('Judul Cerita:', style=Pack(width=120)))
+        self.title_input = toga.TextInput(placeholder='Contoh: Hari yang Menyenangkan ☀️', style=Pack(flex=1))
+        title_box.add(self.title_input)
+
+        content_box = toga.Box(style=Pack(direction=ROW, alignment='center', padding_bottom=5))
+        content_box.add(toga.Label('Isi Cerita:', style=Pack(width=120)))
+        self.content_input = toga.TextInput(placeholder='Ceritakan harimu di sini...', style=Pack(flex=1))
+        content_box.add(self.content_input)
+
+        mood_box = toga.Box(style=Pack(direction=ROW, alignment='center', padding_bottom=5))
+        mood_box.add(toga.Label('Suasana Hati:', style=Pack(width=120)))
+        self.mood_input = toga.Selection(
+            items=['Sangat Bahagia', 'Bahagia', 'Biasa Saja', 'Sedih', 'Sangat Sedih'],
+            style=Pack(flex=1)
+        )
+        mood_box.add(self.mood_input)
+
+        add_btn = toga.Button(
+            'Simpan Cerita',
+            on_press=self.add_journal_entry,
+            style=Pack(flex=1, padding_top=5, background_color="#FFC56E", color="black")
+        )
+
+        box_add.add(date_box)
+        box_add.add(title_box)
+        box_add.add(content_box)
+        box_add.add(mood_box)
+        box_add.add(add_btn)
+        self.content_box.add(box_add)
+
+        self.list_box = toga.Box(style=Pack(direction=COLUMN, padding_top=20, flex=1))
+        self.scroll_container = toga.ScrollContainer(style=Pack(flex=1))
+        self.scroll_container.content = self.items_box
+
+        self.list_box.add(self.scroll_container)
+        self.content_box.add(self.list_box)
+        self.refresh_list()
+
+    def add_journal_entry(self, widget):
+        cursor = self.app.conn.cursor()
+        date_str = self.date_input.value.isoformat() if self.date_input.value else datetime.now().date().isoformat()
+
+        if not self.title_input.value.strip():
+            self.app.main_window.error_dialog("Input Kosong", "Judul ceritamu tidak boleh kosong!")
+            return
+
+        cursor.execute("INSERT INTO daily_journal (date, title, content, mood) VALUES (?, ?, ?, ?)",
+                       (date_str, self.title_input.value, self.content_input.value, self.mood_input.value))
+        self.app.conn.commit()
+        self.title_input.value = ''
+        self.content_input.value = ''
+        self.mood_input.value = 'Biasa Saja'
+        self.refresh_list()
+        self.app.main_window.info_dialog("Berhasil", "Ceritamu berhasil disimpan!")
+
+    def refresh_list(self):
+        for child in self.items_box.children[:]:
+            self.items_box.remove(child)
+
+        cursor = self.app.conn.cursor()
+        cursor.execute("SELECT * FROM daily_journal ORDER BY date DESC, id DESC")
+        rows = cursor.fetchall()
+
+        if self.entry_label and self.entry_label in self.list_box.children:
+            self.list_box.remove(self.entry_label)
+
+        if rows:
+            self.entry_label = toga.Label('📖 Entri Sebelumnya')
+            self.list_box.insert(0, self.entry_label)
+        else:
+            self.entry_label = None
+
+        for row in rows:
+            item_box = toga.Box(
+                style=Pack(direction=COLUMN, padding=10, background_color="#FFF9C4", padding_top=5, padding_bottom=10)
+            )
+            item_box.add(toga.Label(f"Tanggal: {row[1]}", style=Pack(font_weight='bold', padding_bottom=2)))
+            item_box.add(toga.Label(f"Judul: {row[2]}", style=Pack(padding_bottom=2)))
+            if row[3]:
+                item_box.add(toga.Label(f"Isi: {row[3]}", style=Pack(padding_bottom=2)))
+            item_box.add(toga.Label(f"Mood: {row[4]}", style=Pack(padding_bottom=5)))
+
+            btn_box = toga.Box(style=Pack(direction=ROW, padding_top=5))
+            edit_btn = toga.Button(
+                'Ubah',
+                on_press=partial(self.app.show_edit_dialog, 'daily_journal', row[0], self.refresh_list),
+                style=Pack(flex=1, padding_right=5, background_color="#FFC56E", color="black")
+            )
+            delete_btn = toga.Button(
+                'Hapus',
+                on_press=partial(self.delete_item, row[0]),
+                style=Pack(flex=1, background_color="#E6635A", color="black")
+            )
+            btn_box.add(edit_btn)
+            btn_box.add(delete_btn)
+            item_box.add(btn_box)
+            self.items_box.add(item_box)
+
+    def delete_item(self, item_id):
+        self.app.main_window.confirm_dialog(
+            "Konfirmasi Hapus",
+            "Apakah kamu yakin ingin menghapus cerita ini?",
+            on_result=lambda dialog, result: self._confirm_delete(result, item_id)
+        )
+
+    def _confirm_delete(self, result, item_id):
+        if result:
+            cursor = self.app.conn.cursor()
+            cursor.execute("DELETE FROM daily_journal WHERE id=?", (item_id,))
+            self.app.conn.commit()
+            self.refresh_list()
+            self.app.main_window.info_dialog("Berhasil", "Cerita berhasil dihapus.")
+
+    def get_content(self):
+        return self.content_box
