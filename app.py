@@ -21,17 +21,23 @@ class LifeJournalApp(toga.App):
 
         self.main_box = toga.Box(style=Pack(direction=COLUMN, flex=1))
 
-        # Warna navigasi biru muda lembut
+        # Warna navigasi
         self.nav_box = toga.Box(style=Pack(direction=ROW, padding=10, background_color="#FDF3CD"))
-        self.btn_daily_journal = toga.Button('Catatan Harianku', on_press=self.show_daily_journal,
-                                             style=Pack(flex=1, padding=5, font_size=14))
-        self.btn_habit_tracker = toga.Button('Kebiasaanku 💪', on_press=self.show_habit_tracker,
-                                             style=Pack(flex=1, padding=5, font_size=14))
+        self.btn_daily_journal = toga.Button(
+            'Catatan Harianku',
+            on_press=self.show_daily_journal,
+            style=Pack(flex=1, padding=5, font_size=14, background_color="#F2C889")
+        )
+        self.btn_habit_tracker = toga.Button(
+            'Kebiasaanku 💪',
+            on_press=self.show_habit_tracker,
+            style=Pack(flex=1, padding=5, font_size=14, background_color="#F2C889")
+        )
 
         self.nav_box.add(self.btn_daily_journal)
         self.nav_box.add(self.btn_habit_tracker)
 
-        # Background content warna krem
+        # Konten utama
         self.content_box = toga.Box(style=Pack(direction=COLUMN, flex=1, padding=10, background_color="#FFFDE7"))
         self.main_box.add(self.nav_box)
         self.main_box.add(self.content_box)
@@ -56,10 +62,15 @@ class LifeJournalApp(toga.App):
 
     def update_nav_buttons(self, active_widget):
         default_style = {'background_color': "#F2C889"}
-        active_style = {'background_color': '#FFB74D'}  # Tombol aktif warna biru lebih gelap
-        self.btn_daily_journal.style.update(**default_style)
-        self.btn_habit_tracker.style.update(**default_style)
-        active_widget.style.update(**active_style)
+        active_style = {'background_color': '#FFB74D'}
+
+        if self.btn_daily_journal.style:
+            self.btn_daily_journal.style.update(**default_style)
+        if self.btn_habit_tracker.style:
+            self.btn_habit_tracker.style.update(**default_style)
+
+        if active_widget.style:
+            active_widget.style.update(**active_style)
 
     def show_daily_journal(self, widget=None):
         self.update_nav_buttons(self.btn_daily_journal)
