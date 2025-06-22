@@ -1,0 +1,168 @@
+import toga
+from toga.style import Pack
+from toga.style.pack import COLUMN, ROW
+from datetime import datetime
+from functools import partial
+
+class HabitTrackerView:
+    def __init__(self, app):
+        self.app = app
+        self.content_box = toga.Box(style=Pack(direction=COLUMN, flex=1, background_color="#FFFDE7"))
+        self.items_box = toga.Box(style=Pack(direction=COLUMN, padding_top=5, flex=1))
+        self.habit_label = None
+        self.setup_ui()
+
+    def setup_ui(self):
+        title = toga.Label('Kebiasaanku 💪', style=Pack(font_size=20, padding_bottom=10))
+        self.content_box.add(title)
+
+        # 💛 Form Input Box
+        box_add = toga.Box(style=Pack(direction=COLUMN, padding=10, background_color="#FFF9C4"))
+        box_add.add(toga.Label('Buat Kebiasaan Baru', style=Pack(padding_bottom=10, font_style='italic')))
+
+        name_box = toga.Box(style=Pack(direction=ROW, alignment='center', padding_bottom=5))
+        name_box.add(toga.Label('Nama Kebiasaan:', style=Pack(width=140)))
+        self.name_input = toga.TextInput(placeholder='Contoh: Bangun jam 6 pagi ☀️', style=Pack(flex=1))
+        name_box.add(self.name_input)
+
+        frequency_box = toga.Box(style=Pack(direction=ROW, alignment='center', padding_bottom=5))
+        frequency_box.add(toga.Label('Seberapa Sering?', style=Pack(width=140)))
+        self.frequency_input = toga.Selection(
+            items=['Harian', 'Mingguan', 'Bulanan', 'Sesuai Kebutuhan'],
+            style=Pack(flex=1)
+        )
+        frequency_box.add(self.frequency_input)
+
+        target_box = toga.Box(style=Pack(direction=ROW, alignment='center', padding_bottom=5))
+        target_box.add(toga.Label('Target (opsional):', style=Pack(width=140)))
+        self.target_input = toga.TextInput(placeholder='Contoh: 7x/minggu', style=Pack(flex=1))
+        target_box.add(self.target_input)
+
+        add_btn = toga.Button(
+            'Tambahkan',
+            on_press=self.add_habit,
+            style=Pack(flex=1, padding_top=5, background_color="#FFC56E", color="black")
+        )
+
+        box_add.add(name_box)
+        box_add.add(frequency_box)
+        box_add.add(target_box)
+        box_add.add(add_btn)
+        self.content_box.add(box_add)
+
+        self.list_box = toga.Box(style=Pack(direction=COLUMN, padding_top=20, flex=1))
+        self.scroll_container = toga.ScrollContainer(style=Pack(flex=1))
+        self.scroll_container.content = self.items_box
+
+        self.list_box.add(self.scroll_container)
+        self.content_box.add(self.list_box)
+        self.refresh_list()
+
+    def add_habit(self, widget):
+        cursor = self.app.conn.cursor()
+
+        if not self.name_input.value.strip():
+            self.app.main_window.error_dialog("Input Kosong", "Nama kebiasaan tidak boleh kosong!")
+            return
+
+        try:
+            cursor.execute("INSERT INTO habits (name, frequency, last_performed, target) VALUES (?, ?, ?, ?)",
+                           (self.name_input.value, self.frequency_input.value, None, self.target_input.value))
+            self.app.conn.commit()
+            self.name_input.value = ''
+            self.target_input.value = ''
+            self.frequency_input.value = 'Harian'
+            self.refresh_list()
+            self.app.main_window.info_dialog("Berhasil", "Kebiasaanmu berhasil ditambahkan!")
+        except Exception as e:
+            self.app.main_window.error_dialog("Error", f"Ups! Gagal menambahkan kebiasaan: {e}")
+
+    def refresh_list(self):
+        for child in self.items_box.children[:]:
+            self.items_box.remove(child)
+
+        cursor = self.app.conn.cursor()
+        cursor.execute("SELECT * FROM habits ORDER BY name ASC")
+        rows = cursor.fetchall()
+
+        if self.habit_label and self.habit_label in self.list_box.children:
+            self.list_box.remove(self.habit_label)
+
+        if rows:
+            self.habit_label = toga.Label('📋 Daftar Kebiasaan')
+            self.list_box.insert(0, self.habit_label)
+        else:
+            self.habit_label = None
+
+        today = datetime.now().strftime('%Y-%m-%d')
+
+        for row in rows:
+            item_box = toga.Box(
+                style=Pack(direction=COLUMN, padding=10, background_color="#FFF9C4", padding_top=5, padding_bottom=10)
+            )
+            item_box.add(toga.Label(f"Nama: {row[1]}", style=Pack(padding_bottom=2)))
+            item_box.add(toga.Label(f"Frekuensi: {row[2]}", style=Pack(padding_bottom=2)))
+            item_box.add(toga.Label(f"Terakhir Dicatat: {row[3] if row[3] else '-'}", style=Pack(padding_bottom=2)))
+            if row[4]:
+                item_box.add(toga.Label(f"Target: {row[4]}", style=Pack(padding_bottom=5)))
+
+            btn_box = toga.Box(style=Pack(direction=ROW, padding_top=5))
+
+            if row[3] == today:
+                mark_done_btn = toga.Button(
+                    '✅ Sudah Selesai Hari Ini',
+                    enabled=False,
+                    style=Pack(flex=1, padding_right=5, background_color="#E0E0E0")
+                )
+            else:
+                mark_done_btn = toga.Button(
+                    '✔️ Selesai Hari Ini',
+                    on_press=partial(self.mark_habit_done, row[0]),
+                    style=Pack(flex=1, padding_right=5, background_color="#FFB74D", color="")
+                )
+
+            edit_btn = toga.Button(
+                'Ubah',
+                on_press=partial(self.app.show_edit_dialog, 'habits', row[0], self.refresh_list),
+                style=Pack(flex=1, padding_right=5, background_color="#FFC56E", color="black")
+            )
+            delete_btn = toga.Button(
+                'Hapus',
+                on_press=partial(self.delete_item, row[0]),
+                style=Pack(flex=1, background_color="#E6635A", color="black")
+            )
+
+            btn_box.add(mark_done_btn)
+            btn_box.add(edit_btn)
+            btn_box.add(delete_btn)
+            item_box.add(btn_box)
+            self.items_box.add(item_box)
+
+    def mark_habit_done(self, habit_id, widget=None):
+        cursor = self.app.conn.cursor()
+        today = datetime.now().strftime('%Y-%m-%d')
+        try:
+            cursor.execute("UPDATE habits SET last_performed=? WHERE id=?", (today, habit_id))
+            self.app.conn.commit()
+            self.app.main_window.info_dialog("Berhasil", "Good job! Satu kebiasaan selesai hari ini ✨")
+            self.refresh_list()
+        except Exception as e:
+            self.app.main_window.error_dialog("Error", f"Gagal menandai kebiasaan: {e}")
+
+    def delete_item(self, item_id, widget=None):
+        self.app.main_window.confirm_dialog(
+            "Konfirmasi Hapus",
+            "Yakin ingin menghapus kebiasaan ini?",
+            on_result=lambda dialog, result: self._confirm_delete(result, item_id)
+        )
+
+    def _confirm_delete(self, result, item_id):
+        if result:
+            cursor = self.app.conn.cursor()
+            cursor.execute("DELETE FROM habits WHERE id=?", (item_id,))
+            self.app.conn.commit()
+            self.refresh_list()
+            self.app.main_window.info_dialog("Berhasil", "Kebiasaan dihapus dari daftar.")
+
+    def get_content(self):
+        return self.content_box
